@@ -1,0 +1,17 @@
+{
+  "name": "create-cljs-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Alex Dixon",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^2.3.0",
+    "commander": "^2.13.0",
+    "inquirer": "^5.0.0",
+    "lodash": "^4.17.4"
+  }
+}
