@@ -1,166 +1,161 @@
 #!/usr/bin/env node
-
 const path = require("path")
 const _ = require("lodash")
 const os = require("os")
 const childProcess = require("child_process")
-const commander = require("commander")
-const inquirer = require("inquirer")
-const chalk = require("chalk")
+const { prompt } = require("inquirer")
 const jre = require("./../lib/node-jre")
+const prompts = require("./prompts")
+const util = require('./util')
+const java = require("./java")
+const lein = require("./lein")
 
 
-const getLeinDownloadUrl = (platform) => {
-  if (platform !== "win32") {
-   return "https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein"
+class Exception extends Error {
+  constructor(message, data) {
+    super()
+    this.name = "Exception"
+    this.data = data
+    this.message = message + " " + JSON.stringify(this.data, null, 2)
   }
-  return "https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein.bat"
 }
 
-const getJavaVersion = () => {
-  const cmdRes = childProcess.spawnSync('java', ['-version'])
-  if (cmdRes.status !== 0) {
-    console.error("Error running 'java -version'")
-    return process.exit(1)
+const downloadAndInstallJava = async ({ binPath, platform, installPath, shellRcFilepath, javaHome }) => {
+
+  await jre.install(installPath)
+           .catch(e => {
+             console.error("Error installing Java", e)
+             return process.exit(1)
+           })
+
+  // TODO. Verify java bin works
+
+  // Add JAVA_HOME
+  const { okToSetJavaHome } = await prompt(prompts.setJavaHome(platform, shellRcFilepath, binPath))
+  if (!okToSetJavaHome) {
+    console.log("Please set JAVA_HOME manually and try running the installer again.")
+    return process.exit(0)
   }
-  const str = cmdRes.stderr.toString("utf-8")
-  const regexp = /java version "(.*?)"/
-  const match = regexp.exec(str)
-  const versionStr = match[1]
-  const majorVersionNumber =
-    parseFloat(
-      _.take(
-        _.first(versionStr.split("_"))
-         .split(".")
-        , 2).join("."))
 
-  return { versionStr, majorVersionNumber }
-}
 
-const findJavaHome = () => {
-  // let jreDir = childProcess.execSync("echo $JAVA_HOME")
-  let jreDir = childProcess.execSync("echo $JAVA")
-  jreDir = _.trim(jreDir.toString("utf-8"))
-  return !jreDir ? false : jreDir
-}
+  util.addEnvKVToRcFile(shellRcFilepath, "JAVA_HOME", javaHome)
 
-const prettyPlatform = platform => {
-  if (platform === "darwin") return "macOS"
-  if (platform === "win32") return "windows"
-  return _.capitalize(platform)
-}
-
-const getDefaultJavaInstallLocation = (platform) => {
-  if (platform === "darwin") return "/Library/Java/JavaVirtualMachines"
-  if (platform === "win32") return "C:\\Program Files\\Java"
-  if (platform === "linux") return "/usr/java"
-}
-
-const whenNoJavaHome = (platform) => [
-  {
-    type: "confirm",
-    name: "userSaysJavaInstalled",
-    message: "No $JAVA_HOME environment variable detected. Do you have Java installed?",
-    default: false,
-  },
-  {
-    type: "confirm",
-    name: "installJava",
-    message: "Would you like to install the recommended Java SDK?",
-    when: answers => answers.userSaysJavaInstalled === false,
-  },
-  {
-    type: "confirm",
-    name: "installJavaDefaultOSLocation",
-    message: "The default Java install location for "
-             + prettyPlatform(platform) + " is:\n\n"
-             + "  " + getDefaultJavaInstallLocation(platform)
-             + "\n\n OK to install it here?",
-    when: answers => answers.installJava === true,
-  },
-
-]
-
-const whenJavaHome = (javaMajorVersionNumber, leinSemver) => [
-  {
-    type: "confirm",
-    name: "validJavaAndLeinConfirmed",
-    message: "Looks like you have Java version " + javaMajorVersionNumber
-             + " and Leiningen " + leinSemver
-             + ". Congratulations! \n\n Press Y or ENTER to confirm.",
-    when: answers => javaMajorVersionNumber > 1.6 && leinSemver,
-  },
-  {
-    type: "confirm",
-    name: "wantsToInstallLein",
-    message: "Looks like you have Java but no `lein` command on your path. Would you like to install Leiningen?",
-    when: answers => javaMajorVersionNumber > 1.6 && !leinSemver,
-  },
-  {
-    type: "confirm",
-    name: "installNewerJavaToSatisfyRequirement",
-    message: "Looks like you have Java version " + javaMajorVersionNumber
-             + ". Clojure/Clojurescript require Java 1.6 or higher. \n\n"
-             + "Would you like to install Java 1.8 now?",
-    when: answers => javaMajorVersionNumber < 1.6,
-  },
-
-]
-
-const javaHome = findJavaHome()
-const platform = os.platform()
-
-const findLeinVersion = () => {
-  const versionCmd = childProcess.execSync("lein --version").toString("utf-8")
-  if (!versionCmd) {
-    return false
+  // Add java bin to PATH
+  const { ok } = await prompt(prompts.addJavaToPath(javaHome))
+  if (!ok) {
+    console.log("Please make the java command accessible with `java` and try running the installer again.")
+    return process.exit(0)
   }
-  const words = versionCmd.split(" ")
-  const semver = words[words.indexOf("Leiningen") + 1]
-  return semver
+  util.addToPath(shellRcFilepath, javaHome + "/bin")
 }
 
-const getShellRcFilePath = () => {
-  const bashrcDefault = "$HOME/.bashrc"
-  const zshrcDefault = "$HOME/.zshrc"
-  if (fs.existsSync(zshrcDefault)) return zshrcDefault
-  if (fs.existsSync(bashrcDefault)) return bashrcDefault
-  return false
+const main = async () => {
+  const javaHome = java.findJavaHome()
+  const platform = os.platform()
+
+  if (!javaHome) {
+    const {
+      userSaysJavaInstalled,
+      installJava,
+      installJavaDefaultOSLocation,
+      validJavaExecutablePath,
+    } = await prompt(prompts.whenNoJavaHome(platform))
+
+    if (validJavaExecutablePath) {
+      // prompt to set java home
+    }
+
+    if (userSaysJavaInstalled) {
+      console.log("Please set JAVA_HOME manually and try running the installer again.")
+      return process.exit(0)
+    }
+
+    if (installJava && installJavaDefaultOSLocation) {
+      const shellRcFilepath = util.getShellRcFilePath()
+      const installPath = java.getDefaultJavaInstallPath(platform)
+      const binPath = java.pathToJavaBin(installPath, jre.jreDirname, platform)
+      const javaHome = java.pathToJavaBinToJavaHome(platform, binPath)
+
+      await downloadAndInstallJava({
+        binPath,
+        installPath,
+        shellRcFilepath,
+        platform,
+        javaHome,
+      })
+
+      // Prompt donwload lein
+      const defaultLeinDownloadLocation = lein.getDefaultDownloadDir(platform)
+      const { downloadLeinToDefaultLocation, customLocation } = await prompt(
+        prompts.downloadLein(defaultLeinDownloadLocation))
+
+      // Download lein
+      const leinDownloadPath = downloadLeinToDefaultLocation
+        ? defaultLeinDownloadLocation
+        : customLocation
+      const url = lein.getLeinDownloadUrl(platform)
+      await util.download(url, leinDownloadPath)
+
+      // Install lein
+
+    }
+  } else {
+
+    const { majorVersionNumber } = java.getJavaVersion()
+
+    if (!majorVersionNumber) {
+      const { userRequestsAddJavaToPath } =
+        await prompt(prompts.addJavaToPath(javaHome))
+
+      if (!userRequestsAddJavaToPath) {
+        console.log("Please make the `java` command available on your shell and rerun the installer.")
+        return process.exit(0)
+      }
+      util.addToPath(util.getShellRcFilePath(), javaHome)
+    }
+
+    // Install lein
+    const leinVersion = lein.findLeinVersion()
+    const isJavaVersionRequirementMet = java.meetsVersionRequirement(majorVersionNumber)
+
+    const {
+      validJavaAndLeinConfirmed,
+      wantsToInstallLeinToDefaultLocation,
+    } = await prompt(prompts.whenJavaHome(
+      majorVersionNumber,
+      leinVersion,
+      isJavaVersionRequirementMet,
+    ))
+
+    if (validJavaAndLeinConfirmed) {
+      console.log('Install more stuff')
+      process.exit(0)
+
+    } else if (wantsToInstallLeinToDefaultLocation) {
+      //FIXME. this is repeated above
+      console.log('fixme')
+      // try {
+      //   const x = await lein.downloadLein(platform,downloadDir)
+      // } catch (e) {
+      //   console.error("Error downloading lein", e)
+      // }
+      //
+      // childProcess.execSync("chmod +x " + filepath)
+      //
+      // const rcFilepath = util.getShellRcFilePath()
+      //
+      // console.log('adding to path', rcFilepath, filepath)
+      // util.addToPath(rcFilepath, filepath)
+      //
+      // console.log('sourcing rcfile', rcFilepath)
+      //
+      // childProcess.execSync("source " + rcFilepath)
+
+      // childProcess.execSync("lein2")
+    }
+  }
 }
 
-const addJavaHome = (rcPath, javaHomePath) => {
-  childProcess.execSync(
-    `# Added by create-cljs-app
-     echo "export JAVA_HOME=${javaHomePath}" >> ${rcPath}`)
+module.exports = {
+  main,
 }
-
-const addJavaCommandToPath = (rcPath, javaHomePath) => {
-  childProcess.execSync(
-    `# Added by create-cljs-app
-     echo "export PATH=$PATH:${javaHomePath}" >> ${rcPath}`)
-}
-
-
-if (!javaHome) {
-  inquirer.prompt(whenNoJavaHome(platform))
-          .then(answers => {
-            if (answers.userSaysJavaInstalled) {
-              console.log("Please set $JAVA_HOME to the path of your installation and try running the installer again.")
-              return process.exit(0)
-            }
-            if (answers.installJava && answers.installJavaDefaultOSLocation) {
-              const defaultLocation = getDefaultJavaInstallLocation(platform)
-              jre.install(defaultLocation)
-            }
-
-            console.log(answers)
-          })
-} else {
-  const { majorVersionNumber } = getJavaVersion()
-  const leinVersion = findLeinVersion()
-
-  inquirer.prompt(whenJavaHome(majorVersionNumber, leinVersion))
-          .then(answers => console.log(answers))
-}
-
-

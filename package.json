@@ -1,13 +1,13 @@
 {
-  "name": "create-cljs-app",
-  "version": "1.0.0",
+  "name": "clojure",
+  "version": "0.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Alex Dixon",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "chalk": "^2.3.0",
     "commander": "^2.13.0",
