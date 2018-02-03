@@ -1,16 +1,13 @@
 {
   "name": "install-clojure",
-  "version": "0.0.0",
-  "description": "",
+  "version": "0.0.1",
+  "description": "A CLI that installs Clojure and Clojurescript",
   "main": "src/entry.js",
   "bin": "src/entry.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "Alex Dixon",
+  "author": "always-be-clojuring",
   "license": "MIT",
+  "repository": "https://github.com/always-be-clojuring/install-clojure",
   "dependencies": {
-    "chalk": "^2.3.0",
     "inquirer": "^5.0.0",
     "lodash": "^4.17.4"
   }
