@@ -1,5 +1,6 @@
-const {main} = require("./index")
+#!/usr/bin/env node
+const { main } = require("./index")
 
 main()
-  .then(x => console.log('x', x))
+  .then(() => console.log('Exiting'))
   .catch(e => console.error("error", e))

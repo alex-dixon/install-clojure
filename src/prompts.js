@@ -1,45 +1,35 @@
-const os = require("os")
 const util = require("./util")
 const java = require("./java")
 
 
-const whenNoJavaHome = (platform, javaBin, installedJavaVersion) => [{
+const whenNoJavaHome = ({ platform, prettyPlatform, javaBin, installedJavaVersion, sampleJavaInstallPath}) => [{
   type: "confirm",
   name: "userSaysJavaInstalled",
   message: "No JAVA_HOME environment variable detected. Do you have Java installed?",
   default: false,
 }, {
   type: "confirm",
-  name: "installJava",
+  name: "wantsToInstallJava",
   message: "Would you like to install the recommended Java runtime?",
-  when: answers => answers.userSaysJavaInstalled === false,
+  when: answers => !answers.userSaysJavaInstalled,
 }, {
   type: "confirm",
   name: "addJavaToPath",
-  message: "Would you like to set JAVA_HOME "
-           + util.prettyPlatform(platform) + " is:\n\n"
-           + "  " + java.getDefaultJavaHome(platform, installedJavaVersion)
-           + "\n\n OK to install it here?",
-  when: answers => {
-    return answers.userSaysJavaInstalled === true
-           && javaBin
-  },
+  message: "Would you like to add the `java` command to your PATH?",
+  when: answers => answers.userSaysJavaInstalled && javaBin,
 }, {
   type: "input",
   name: "validJavaExecutablePath",
   message: "Please enter the absolute path to your Java executable. For "
-           + util.prettyPlatform(platform) + " this typically looks like:\n\n"
+           + prettyPlatform + " this typically looks like:\n\n"
            + "  "
-           + java.pathToJavaBin(java.getDefaultJavaInstallPath(platform), "<jre version>", platform),
+           + sampleJavaInstallPath,
   validate: (x) => {
     return x
     //TODO. Run java version command on the provided response
     // Verify it's the recommended version
   },
-  when: answers => {
-    return answers.userSaysJavaInstalled === true
-           && !javaBin
-  },
+  when: answers =>  answers.userSaysJavaInstalled && !javaBin
 }, {
   type: "confirm",
   name: "installJavaDefaultOSLocation",
@@ -47,7 +37,7 @@ const whenNoJavaHome = (platform, javaBin, installedJavaVersion) => [{
            + util.prettyPlatform(platform) + " is:\n\n"
            + "  " + java.getDefaultJavaInstallPath(platform)
            + "\n\n OK to install it here?",
-  when: answers => answers.installJava === true,
+  when: answers => answers.wantsToInstallJava === true,
 }]
 
 const setJavaHome = (platform, shellRcFilepath, validJavaExecutablePath) => [{
@@ -71,7 +61,7 @@ const addJavaToPath = (javaHome) => [{
 
 const downloadLein = (defaultLocation) => [{
   type: "confirm",
-  name: "wantsToInstall",
+  name: "wantsToInstallLein",
   message: "We recommend installing Leiningen, the most popular Clojure package manager. "
            + "We didn't find the `lein` command on your path. "
            + "Would you like to set up Leiningen now?",
@@ -81,13 +71,13 @@ const downloadLein = (defaultLocation) => [{
   name: "downloadLeinToDefaultLocation",
   message: `The default Leiningen download location is ${defaultLocation}. OK download it here?`,
   default: true,
-  when: answers => answers.wantsToInstall,
+  when: answers => answers.wantsToInstallLein,
 }, {
 
   type: "input",
   name: "customLocation",
   message: "Enter the absolute path to where you'd like Leiningen downloaded.",
-  when: answers => answers.wantsToInstall && !answers.downloadLeinToDefaultLocation,
+  when: answers => answers.wantsToInstallLein && !answers.downloadLeinToDefaultLocation,
 }]
 
 const whenJavaHome = (javaMajorVersionNumber, leinSemver,

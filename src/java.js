@@ -35,7 +35,7 @@ const findJavaHome = () => {
   return !jreDir ? false : jreDir
 }
 
-const pathToJavaBin = (installDir, jreDirname, osPlatform) => {
+const pathToJavaExecutable = (installDir, jreDirname, osPlatform) => {
   if (osPlatform === "darwin") return installDir
                                       + "/" + jreDirname
                                       + '/Contents/Home/bin/java'
@@ -54,7 +54,7 @@ const pathToJavaBinToJavaHome = (platform, pathToBin) => {
 
 const getDefaultJavaHome = (platform, jreVersionDirname) => {
   const installDir = getDefaultJavaInstallPath(platform)
-  const pathToBin = pathToJavaBin(installDir, jreVersionDirname, platform)
+  const pathToBin = pathToJavaExecutable(installDir, jreVersionDirname, platform)
   return pathToJavaBinToJavaHome(platform, pathToBin)
 }
 const meetsVersionRequirement = (version) => version >= 1.6
@@ -65,7 +65,7 @@ module.exports = {
   getDefaultJavaHome,
   getDefaultJavaInstallPath,
   getJavaVersion,
-  pathToJavaBin,
+  pathToJavaExecutable,
   pathToJavaBinToJavaHome,
   meetsVersionRequirement
 }

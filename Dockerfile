@@ -18,4 +18,6 @@ RUN npm install
 
 COPY src src
 
+RUN mkdir tmp
+
 VOLUME /usr/java

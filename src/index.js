@@ -1,8 +1,4 @@
-#!/usr/bin/env node
-const path = require("path")
-const _ = require("lodash")
 const os = require("os")
-const childProcess = require("child_process")
 const { prompt } = require("inquirer")
 const jre = require("./../lib/node-jre")
 const prompts = require("./prompts")
@@ -22,13 +18,11 @@ class Exception extends Error {
 
 const downloadAndInstallJava = async ({ binPath, platform, installPath, shellRcFilepath, javaHome }) => {
 
-  await jre.install(installPath)
+  await jre.install(platform, installPath)
            .catch(e => {
              console.error("Error installing Java", e)
              return process.exit(1)
            })
-
-  // TODO. Verify java bin works
 
   // Add JAVA_HOME
   const { okToSetJavaHome } = await prompt(prompts.setJavaHome(platform, shellRcFilepath, binPath))
@@ -46,37 +40,53 @@ const downloadAndInstallJava = async ({ binPath, platform, installPath, shellRcF
     console.log("Please make the java command accessible with `java` and try running the installer again.")
     return process.exit(0)
   }
-  util.addToPath(shellRcFilepath, javaHome + "/bin")
+  const installedJavaBinPath = javaHome + "/bin"
+  util.addToPath(shellRcFilepath, installedJavaBinPath)
+
+  return { installedJavaBinPath }
 }
 
 const main = async () => {
-  const javaHome = java.findJavaHome()
+  const existingJavaHome = java.findJavaHome()
   const platform = os.platform()
 
-  if (!javaHome) {
+  if (!existingJavaHome) {
+    const prettyPlatform = util.prettyPlatform(platform)
+    const sampleJavaInstallPath =
+      java.pathToJavaExecutable(
+        java.getDefaultJavaInstallPath(platform),
+        "<jre version>",
+        platform,
+      )
     const {
       userSaysJavaInstalled,
-      installJava,
+      wantsToInstallJava,
       installJavaDefaultOSLocation,
       validJavaExecutablePath,
-    } = await prompt(prompts.whenNoJavaHome(platform))
+      addJavaToPath,
+    } = await prompt(prompts.whenNoJavaHome({
+      platform,
+      prettyPlatform,
+      sampleJavaInstallPath,
+    }))
 
     if (validJavaExecutablePath) {
       // prompt to set java home
     }
 
-    if (userSaysJavaInstalled) {
-      console.log("Please set JAVA_HOME manually and try running the installer again.")
+    if (userSaysJavaInstalled && !addJavaToPath) {
+      console.log("Please make the `java` command available and try running the installer again.")
       return process.exit(0)
     }
 
-    if (installJava && installJavaDefaultOSLocation) {
+    if (wantsToInstallJava && installJavaDefaultOSLocation) {
+      // Download and install Java
       const shellRcFilepath = util.getShellRcFilePath()
       const installPath = java.getDefaultJavaInstallPath(platform)
-      const binPath = java.pathToJavaBin(installPath, jre.jreDirname, platform)
+      const binPath = java.pathToJavaExecutable(installPath, jre.jreDirname, platform)
       const javaHome = java.pathToJavaBinToJavaHome(platform, binPath)
 
-      await downloadAndInstallJava({
+      const { installedJavaBinPath } = await downloadAndInstallJava({
         binPath,
         installPath,
         shellRcFilepath,
@@ -84,20 +94,29 @@ const main = async () => {
         javaHome,
       })
 
-      // Prompt donwload lein
-      const defaultLeinDownloadLocation = lein.getDefaultDownloadDir(platform)
-      const { downloadLeinToDefaultLocation, customLocation } = await prompt(
+      // Prompt download lein
+      const defaultLeinDownloadLocation = lein.getDefaultDownloadLocation(platform)
+      const { wantsToInstallLein, downloadLeinToDefaultLocation, customLocation } = await prompt(
         prompts.downloadLein(defaultLeinDownloadLocation))
 
-      // Download lein
-      const leinDownloadPath = downloadLeinToDefaultLocation
-        ? defaultLeinDownloadLocation
-        : customLocation
-      const url = lein.getLeinDownloadUrl(platform)
-      await util.download(url, leinDownloadPath)
+      if (wantsToInstallLein) {
+        // Download lein
+        const leinDownloadPath = downloadLeinToDefaultLocation
+          ? defaultLeinDownloadLocation
+          : customLocation
+        const url = lein.getLeinDownloadUrl(platform)
 
-      // Install lein
-
+        await lein.downloadLein({
+          url,
+          downloadPath: leinDownloadPath,
+          installedJavaBinPath,
+        })
+        console.log('Leiningen installed successfully.')
+        console.log("If you installed Java, don't forget to run:\n\n"
+                    + "source " + shellRcFilepath + "\n")
+      } else {
+        console.log('Not installing lein. Exiting.')
+      }
     }
   } else {
 
@@ -105,13 +124,13 @@ const main = async () => {
 
     if (!majorVersionNumber) {
       const { userRequestsAddJavaToPath } =
-        await prompt(prompts.addJavaToPath(javaHome))
+        await prompt(prompts.addJavaToPath(existingJavaHome))
 
       if (!userRequestsAddJavaToPath) {
         console.log("Please make the `java` command available on your shell and rerun the installer.")
         return process.exit(0)
       }
-      util.addToPath(util.getShellRcFilePath(), javaHome)
+      util.addToPath(util.getShellRcFilePath(), existingJavaHome)
     }
 
     // Install lein

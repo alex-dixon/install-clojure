@@ -1,5 +1,4 @@
 const childProcess = require("child_process")
-const os = require('os')
 const util = require("./util")
 const path = require('path')
 
@@ -26,11 +25,28 @@ const getLeinDownloadUrl = (platform) => {
   return "https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein.bat"
 }
 
-const getDefaultDownloadDir = (platform) =>
-  path.resolve(__dirname+'./../tmp')
+const getDefaultDownloadLocation = (platform) =>
+  path.resolve(__dirname + './../tmp/lein')
+
+
+const downloadLein = async ({
+  url,
+  downloadPath,
+  installedJavaBinPath,
+}) => {
+
+  await util.download(url, downloadPath)
+
+  childProcess.execSync("chmod 777 " + downloadPath)
+  childProcess.execSync("export " + "PATH=" + installedJavaBinPath + ":$PATH"
+                        + " && " + downloadPath)
+  childProcess.execSync(`mv ${downloadPath} /usr/local/bin`)
+}
+
 
 module.exports = {
   findLeinVersion,
-  getDefaultDownloadDir,
+  getDefaultDownloadLocation,
   getLeinDownloadUrl,
+  downloadLein,
 }

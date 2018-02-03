@@ -1,8 +1,9 @@
 {
-  "name": "clojure",
+  "name": "install-clojure",
   "version": "0.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/entry.js",
+  "bin": "src/entry.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -10,7 +11,6 @@
   "license": "MIT",
   "dependencies": {
     "chalk": "^2.3.0",
-    "commander": "^2.13.0",
     "inquirer": "^5.0.0",
     "lodash": "^4.17.4"
   }
